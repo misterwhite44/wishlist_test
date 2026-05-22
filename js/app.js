@@ -1,6 +1,45 @@
 // ── App state ────────────────────────────────────────────────────────────────
-let state = AppData.loadData();
+let state = null;
 let currentPage = 'budget';
+
+// Initialize app on page load
+async function initializeApp() {
+  try {
+    state = await AppData.loadData();
+    console.log('✨ App initialized with data');
+    
+    // Setup real-time listener for Firestore updates
+    AppData.setupRealtimeListener((newData) => {
+      state = newData;
+      console.log('🔄 UI updating from Firestore changes...');
+      // Refresh current page if visible
+      if (currentPage === 'budget') renderBudget();
+      if (currentPage === 'categories') renderCategories();
+      rebuildSidebar();
+      updateMobileTotal();
+    });
+    
+    // Initial render
+    renderBudget();
+    rebuildSidebar();
+  } catch (err) {
+    console.error('❌ App initialization failed:', err);
+    alert('Erreur lors du chargement des données. Vérifiez votre configuration Firebase.');
+  }
+}
+
+// Update mobile total display
+function updateMobileTotal() {
+  const el = document.getElementById('mobile-total');
+  if (el && state) el.textContent = state.items.reduce((s,i) => s + i.price, 0).toLocaleString('fr-FR') + ' €';
+}
+
+// Start app when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
 
 // ── Routing ──────────────────────────────────────────────────────────────────
 function navigate(page) {
@@ -363,10 +402,25 @@ function askAIAbout(itemId, question) {
   }, 300);
 }
 
+// ── Data management ──────────────────────────────────────────────────────────
+async function resetDataUI() {
+  if (!confirm('Remettre à zéro ? Cette action est irréversible et affecte tous les utilisateurs.')) return;
+  try {
+    state = await AppData.resetData();
+    rebuildSidebar();
+    renderBudget();
+    console.log('✅ Data reset successfully');
+  } catch (err) {
+    console.error('❌ Reset failed:', err);
+    alert('Erreur lors de la réinitialisation');
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 function init() {
   rebuildSidebar();
   navigate('budget');
 }
 
-window.addEventListener('DOMContentLoaded', init);
+// Don't call init directly - use initializeApp instead
+// window.addEventListener('DOMContentLoaded', init);

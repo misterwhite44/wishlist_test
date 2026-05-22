@@ -6,6 +6,10 @@
   <title>BuyList · Mes achats</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>" />
   <link rel="stylesheet" href="css/style.css" />
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -44,8 +48,8 @@
     </nav>
 
     <div class="sidebar-footer">
-      BuyList · données locales<br />
-      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px" onclick="if(confirm('Remettre à zéro ?')){state=AppData.resetData();rebuildSidebar();renderBudget();}">↺ Réinitialiser les données</button>
+      BuyList · données synchronisées<br />
+      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px" onclick="resetDataUI()">↺ Réinitialiser les données</button>
       <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px;display:block" onclick="resetGroqKey()">🔑 Changer clé Groq</button>
     </div>
   </aside>
@@ -143,6 +147,7 @@
 </div>
 
 <!-- ── Scripts ─────────────────────────────────────────────────────────── -->
+<script src="js/firebase-config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/ai.js"></script>
