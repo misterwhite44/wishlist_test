@@ -45,7 +45,8 @@
 
     <div class="sidebar-footer">
       BuyList · données locales<br />
-      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px" onclick="if(confirm('Remettre à zéro ?')){state=AppData.resetData();rebuildSidebar();renderBudget();}">↺ Réinitialiser</button>
+      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px" onclick="if(confirm('Remettre à zéro ?')){state=AppData.resetData();rebuildSidebar();renderBudget();}">↺ Réinitialiser les données</button>
+      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px;display:block" onclick="resetGroqKey()">🔑 Changer clé Groq</button>
     </div>
   </aside>
 
