@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BuyList · Mes achats</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ── Mobile top bar ───────────────────────────────────────────────────── -->
+<div class="mobile-bar">
+  <button onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+  <span style="font-weight:800;font-size:0.9rem">BuyList</span>
+  <span style="font-family:var(--font-m);font-size:0.75rem;color:var(--accent)" id="mobile-total">—</span>
+</div>
+
+<div class="app-shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <h1>🛒 BuyList</h1>
+      <div><span>Gestion d'achats</span></div>
+    </div>
+
+    <nav class="nav-section">
+      <div class="nav-section-label">Navigation</div>
+      <button class="nav-item active" data-page="budget" onclick="navigate('budget')">
+        <span class="nav-icon">💰</span> Budget
+      </button>
+      <button class="nav-item" data-page="categories" onclick="navigate('categories')">
+        <span class="nav-icon">🗂️</span> Catégories
+      </button>
+      <button class="nav-item" data-page="ai" onclick="navigate('ai')">
+        <span class="nav-icon">✦</span> Assistant IA
+      </button>
+    </nav>
+
+    <nav class="nav-section">
+      <div class="nav-section-label">Mes catégories</div>
+      <div id="nav-cats"></div>
+    </nav>
+
+    <div class="sidebar-footer">
+      BuyList · données locales<br />
+      <button style="background:none;border:none;color:var(--muted);font-size:0.62rem;cursor:pointer;font-family:var(--font-m);margin-top:4px" onclick="if(confirm('Remettre à zéro ?')){state=AppData.resetData();rebuildSidebar();renderBudget();}">↺ Réinitialiser</button>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────── -->
+  <div class="main-content">
+
+    <!-- PAGE: Budget -->
+    <div class="page active" id="page-budget">
+      <div class="page-header">
+        <div>
+          <h2>Mon budget</h2>
+          <p>Liste complète des achats planifiés</p>
+        </div>
+      </div>
+      <div class="page-body">
+        <div id="budget-content"></div>
+      </div>
+    </div>
+
+    <!-- PAGE: Categories -->
+    <div class="page" id="page-categories">
+      <div class="page-header">
+        <div>
+          <h2>Catégories</h2>
+          <p>Gérer et créer des catégories</p>
+        </div>
+        <button class="btn btn-accent" onclick="openNewCatModal()">＋ Nouvelle catégorie</button>
+      </div>
+      <div class="page-body">
+        <div id="cats-content"></div>
+      </div>
+    </div>
+
+    <!-- PAGE: AI -->
+    <div class="page ai-page" id="page-ai">
+      <div class="page-header" style="position:sticky;top:0;background:var(--bg);z-index:5">
+        <div>
+          <h2>✦ Assistant IA</h2>
+          <p>Posez des questions sur vos achats</p>
+        </div>
+      </div>
+      <div class="ai-messages" id="ai-msgs"></div>
+      <div class="ai-suggestions" id="ai-suggestions">
+        <button class="ai-sugg" onclick="useSuggestion('Compare la machine Pongbot Pace S Pro avec la Slinger Bag')">Pongbot vs Slinger Bag ?</button>
+        <button class="ai-sugg" onclick="useSuggestion('Quel est le meilleur rapport qualité/prix dans ma liste ?')">Meilleur rapport qualité/prix ?</button>
+        <button class="ai-sugg" onclick="useSuggestion('Quels articles devrais-je acheter en priorité ?')">Prioriser mes achats</button>
+        <button class="ai-sugg" onclick="useSuggestion('Y a-t-il des alternatives moins chères à la Libernovo Omni ?')">Alternatives chaise ?</button>
+        <button class="ai-sugg" onclick="useSuggestion('Analyse mon budget global')">Analyser mon budget</button>
+      </div>
+      <div class="ai-input-bar">
+        <textarea
+          id="ai-input"
+          placeholder="Posez une question sur vos achats… (Entrée pour envoyer)"
+          onkeydown="handleAIKeydown(event)"
+          rows="1"
+        ></textarea>
+        <button class="btn btn-primary" onclick="sendAIMessage()" style="height:44px;flex-shrink:0">Envoyer →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Detail overlay ──────────────────────────────────────────────────── -->
+<div class="overlay" id="detail-overlay">
+  <div class="detail-panel">
+    <div class="panel-header"></div>
+    <div class="panel-body"></div>
+  </div>
+</div>
+
+<!-- ── Category modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="cat-modal-overlay" onclick="if(event.target===this)closeCatModal()">
+  <div class="modal" id="cat-modal">
+    <h3>Nouvelle catégorie</h3>
+    <input type="hidden" id="cat-modal-id" />
+    <div class="form-row">
+      <label>Nom</label>
+      <input type="text" id="cat-modal-label" placeholder="ex: Mobilier" />
+    </div>
+    <div class="form-row">
+      <label>Emoji / icône</label>
+      <input type="text" id="cat-modal-icon" placeholder="ex: 🪴" maxlength="4" />
+    </div>
+    <div class="form-row">
+      <label>Couleur</label>
+      <input type="color" id="cat-modal-color" value="#e8c547" style="height:38px;padding:2px 4px;cursor:pointer" />
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeCatModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCatModal()">Sauvegarder →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ─────────────────────────────────────────────────────────── -->
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/ai.js"></script>
+
+<script>
+  // Keep mobile total in sync
+  const _origRenderBudget = window.renderBudget;
+  // Patch after DOMContentLoaded
+  window.addEventListener('DOMContentLoaded', () => {
+    const orig = window.renderBudget;
+    window.renderBudget = function() {
+      orig();
+      const el = document.getElementById('mobile-total');
+      if (el) el.textContent = state.items.reduce((s,i) => s + i.price, 0).toLocaleString('fr-FR') + ' €';
+    };
+  });
+</script>
+
+</body>
+</html>
