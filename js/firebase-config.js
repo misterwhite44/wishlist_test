@@ -1,36 +1,28 @@
-// ── Firebase Configuration ──────────────────────────────────────────────────
-// ⚠️ IMPORTANT: Replace with your own Firebase credentials from
-// https://console.firebase.google.com → Your Project → Project Settings → Web
+// firebase-config.js
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD1reaUvJD39XEPVv1bBBB9CD_icc1CX7A",
-  authDomain: "wishlist-907be.firebaseapp.com",
-  projectId: "wishlist-907be",
-  storageBucket: "wishlist-907be.firebasestorage.app",
-  messagingSenderId: "961573518397",
-  appId: "1:961573518397:web:7cb1d2ea0bf7c3564d3e54",
-  measurementId: "G-C2Z97D94X2"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 
-// Get Firestore reference
 const db = firebase.firestore();
 
-// Optional: Enable offline persistence (recommended)
 db.enablePersistence()
   .catch((err) => {
-    if (err.code == 'failed-precondition') {
+    if (err.code === 'failed-precondition') {
       console.warn('Multiple tabs open - offline persistence disabled');
-    } else if (err.code == 'unimplemented') {
+    } else if (err.code === 'unimplemented') {
       console.warn('Browser does not support offline persistence');
     }
   });
 
-// Anonymous auth is not required for the current Firestore security rules.
-// Remove or enable it later only if you add auth-based rules.
-// firebase.auth().signInAnonymously()
-//   .catch((error) => console.warn('Anonymous auth failed:', error));
-
 console.log('🔥 Firebase initialized');
+
+export { db };
