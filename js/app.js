@@ -31,7 +31,7 @@ async function initializeApp() {
 // Update mobile total display
 function updateMobileTotal() {
   const el = document.getElementById('mobile-total');
-  if (el && state) el.textContent = state.items.reduce((s,i) => s + i.price, 0).toLocaleString('fr-FR') + ' €';
+  if (el && state && state.items) el.textContent = state.items.reduce((s,i) => s + (i.price || 0), 0).toLocaleString('fr-FR') + ' €';
 }
 
 // Start app when DOM is ready
@@ -61,21 +61,28 @@ function navigate(page) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(n) { return n.toLocaleString('fr-FR') + ' €'; }
+function fmt(n) { 
+  if (n === undefined || n === null) return '0 €';
+  return (typeof n === 'number' ? n : 0).toLocaleString('fr-FR') + ' €'; 
+}
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
 
-function getCatById(id) { return state.categories.find(c => c.id === id); }
-function getItemById(id) { return state.items.find(i => i.id === id); }
+function getCatById(id) { return state?.categories?.find(c => c.id === id); }
+function getItemById(id) { return state?.items?.find(i => i.id === id); }
 
 function catTotal(catId) {
-  return state.items.filter(i => i.cat === catId).reduce((s,i) => s + i.price, 0);
+  if (!state?.items) return 0;
+  return state.items.filter(i => i.cat === catId).reduce((s,i) => s + (i.price || 0), 0);
 }
 
-function grandTotal() { return state.items.reduce((s, i) => s + i.price, 0); }
+function grandTotal() { 
+  if (!state?.items) return 0;
+  return state.items.reduce((s, i) => s + (i.price || 0), 0); 
+}
 
 function persist() { AppData.saveData(state); }
 
@@ -83,6 +90,10 @@ function persist() { AppData.saveData(state); }
 function renderBudget() {
   const cont = document.getElementById('budget-content');
   if (!cont) return;
+  if (!state || !state.items || !state.categories) {
+    console.warn('⚠️ State not ready for renderBudget');
+    return;
+  }
 
   const total = grandTotal();
   const checked = state.items.filter(i => i.checked).length;
@@ -383,6 +394,7 @@ function editCategory(id) { openNewCatModal(id); }
 function rebuildSidebar() {
   const cont = document.getElementById('nav-cats');
   if (!cont) return;
+  if (!state || !state.categories || !state.items) return;
   cont.innerHTML = state.categories.map(cat => `
     <button class="nav-item" data-page="budget" onclick="navigate('budget')" style="">
       <span class="nav-icon">${cat.icon}</span>

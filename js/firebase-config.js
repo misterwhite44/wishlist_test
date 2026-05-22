@@ -28,8 +28,9 @@ db.enablePersistence()
     }
   });
 
-// Initialize auth anonymously (optional - for tracking)
-firebase.auth().signInAnonymously()
-  .catch((error) => console.warn('Anonymous auth failed:', error));
+// Anonymous auth is not required for the current Firestore security rules.
+// Remove or enable it later only if you add auth-based rules.
+// firebase.auth().signInAnonymously()
+//   .catch((error) => console.warn('Anonymous auth failed:', error));
 
 console.log('🔥 Firebase initialized');

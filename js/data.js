@@ -111,8 +111,15 @@ async function loadData() {
     const snapshot = await docRef.get();
     
     if (snapshot.exists) {
-      console.log('📚 Loaded data from Firestore');
-      return snapshot.data();
+      const rawData = snapshot.data();
+      console.log('📚 Loaded data from Firestore', rawData);
+      const normalized = normalizeFirestoreState(rawData);
+      if (!isValidState(normalized)) {
+        console.warn('⚠️ Firestore document format invalid, reinitializing with DEFAULT_DATA');
+        await docRef.set(DEFAULT_DATA);
+        return JSON.parse(JSON.stringify(DEFAULT_DATA));
+      }
+      return normalized;
     } else {
       console.log('📝 No data in Firestore, initializing with defaults...');
       // Initialize Firestore with default data
@@ -130,9 +137,21 @@ async function loadData() {
   }
 }
 
+function normalizeFirestoreState(rawData) {
+  if (!rawData) return null;
+  return rawData.state || rawData;
+}
+
+function isValidState(state) {
+  if (!state || !Array.isArray(state.categories) || !Array.isArray(state.items)) return false;
+  const validCategory = (cat) => cat && typeof cat.id === 'string' && typeof cat.label === 'string';
+  const validItem = (item) => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.price === 'number';
+  return state.categories.every(validCategory) && state.items.every(validItem);
+}
+
 async function saveData(data) {
   try {
-    await db.collection('state').doc('main').update(data);
+    await db.collection('state').doc('main').set(data);
     console.log('✅ Data saved to Firestore');
   } catch (err) {
     console.error('❌ Firestore save error:', err);
@@ -159,9 +178,14 @@ function setupRealtimeListener(onStateChange) {
   try {
     db.collection('state').doc('main').onSnapshot((snapshot) => {
       if (snapshot.exists) {
-        const newData = snapshot.data();
-        console.log('🔄 Real-time update from Firestore');
-        onStateChange(newData);
+        const rawData = snapshot.data();
+        console.log('🔄 Real-time update from Firestore', rawData);
+        const normalized = normalizeFirestoreState(rawData);
+        if (!isValidState(normalized)) {
+          console.warn('⚠️ Firestore real-time update format invalid, ignoring');
+          return;
+        }
+        onStateChange(normalized);
       }
     });
   } catch (err) {
