@@ -1,5 +1,4 @@
 {
   "buildCommand": "node scripts/generate-firebase-config.js",
-  "outputDirectory": ".",
-  "framework": "static"
+  "outputDirectory": "."
 }
