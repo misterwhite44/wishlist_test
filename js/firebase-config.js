@@ -1,19 +1,20 @@
 // firebase-config.js
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD1reaUvJD39XEPVv1bBBB9CD_icc1CX7A",
-  authDomain: "wishlist-907be.firebaseapp.com",
-  projectId: "wishlist-907be",
-  storageBucket: "wishlist-907be.firebasestorage.app",
-  messagingSenderId: "961573518397",
-  appId: "1:961573518397:web:7cb1d2ea0bf7c3564d3e54",
-  measurementId: "G-C2Z97D94X2"
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID,
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+console.log(firebaseConfig);
 
 firebase.initializeApp(firebaseConfig);
 
 const db = firebase.firestore();
-window.db = db;
 
 db.enablePersistence()
   .catch((err) => {
@@ -25,3 +26,5 @@ db.enablePersistence()
   });
 
 console.log('🔥 Firebase initialized');
+
+export { db };
