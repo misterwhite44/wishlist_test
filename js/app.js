@@ -22,6 +22,7 @@ async function initializeApp() {
     // Initial render
     renderBudget();
     rebuildSidebar();
+    bindSidebarAutoClose();
   } catch (err) {
     console.error('❌ App initialization failed:', err);
     alert('Erreur lors du chargement des données. Vérifiez votre configuration Firebase.');
@@ -128,12 +129,13 @@ function renderBudget() {
         <span class="cat-dot" style="background:${cat.color}"></span>
         <h3>${cat.label}</h3>
         <span class="cat-sub">${fmt(sub)}</span>
-        <button class="item-btn" style="margin-left:8px" onclick="quickAddItem('${cat.id}')" title="Ajouter dans cette catégorie">＋</button>
+        <button class="item-btn" onclick="event.stopPropagation(); editCategory('${cat.id}')" title="Modifier la catégorie">✏</button>
+        <button class="item-btn" style="margin-left:8px" onclick="event.stopPropagation(); quickAddItem('${cat.id}')" title="Ajouter dans cette catégorie">＋</button>
       </div>
       <div class="items-grid">`;
 
     if (!items.length) {
-      html += `<div class="empty-cat">Aucun article — <button class="ai-sugg" onclick="quickAddItem('${cat.id}')">+ Ajouter</button></div>`;
+      html += `<div class="empty-cat">Aucun article — <button class="ai-sugg" onclick="event.stopPropagation(); quickAddItem('${cat.id}')">+ Ajouter</button></div>`;
     } else {
       items.forEach(item => {
         html += `
@@ -146,8 +148,9 @@ function renderBudget() {
             </div>
             <span class="item-price" style="color:${cat.color}">${fmt(item.price)}</span>
             <div class="item-actions" onclick="event.stopPropagation()">
-              <button class="item-btn info" onclick="openDetail('${item.id}')" title="Détails & comparaison">🔍</button>
-              <button class="item-btn del" onclick="deleteItem('${item.id}')" title="Supprimer">✕</button>
+              <button class="item-btn info" onclick="event.stopPropagation(); openEditItem('${item.id}')" title="Modifier l'article">✎</button>
+              <button class="item-btn info" onclick="event.stopPropagation(); openDetail('${item.id}')" title="Détails & comparaison">🔍</button>
+              <button class="item-btn del" onclick="event.stopPropagation(); deleteItem('${item.id}')" title="Supprimer">✕</button>
             </div>
           </div>`;
       });
@@ -189,8 +192,66 @@ function toggleCheck(id) {
 }
 
 function deleteItem(id) {
+  const item = getItemById(id);
+  if (!item) return;
+  if (!confirm(`Supprimer l'article « ${item.name} » ? Cette action est irréversible.`)) return;
   state.items = state.items.filter(i => i.id !== id);
   persist();
+  renderBudget();
+}
+
+function openEditItem(itemId) {
+  const item = getItemById(itemId);
+  if (!item) return;
+
+  const catSelect = document.getElementById('item-modal-cat');
+  if (catSelect) {
+    catSelect.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+  }
+
+  document.getElementById('item-modal-id').value = item.id;
+  document.getElementById('item-modal-name').value = item.name;
+  document.getElementById('item-modal-price').value = item.price;
+  document.getElementById('item-modal-cat').value = item.cat;
+  document.getElementById('item-modal-sub').value = item.subtitle || '';
+  document.getElementById('item-modal-link').value = item.link || '';
+  document.getElementById('item-modal-desc').value = item.description || '';
+  document.getElementById('item-modal').querySelector('h3').textContent = 'Modifier l’article';
+  document.getElementById('item-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('item-modal-name')?.focus(), 50);
+}
+
+function closeItemModal() {
+  document.getElementById('item-modal-overlay').classList.remove('open');
+}
+
+function saveItemModal() {
+  const id = document.getElementById('item-modal-id').value;
+  const item = getItemById(id);
+  if (!item) return;
+
+  const name = document.getElementById('item-modal-name').value.trim();
+  const price = parseFloat(document.getElementById('item-modal-price').value);
+  const cat = document.getElementById('item-modal-cat').value;
+  const sub = document.getElementById('item-modal-sub').value.trim();
+  const link = document.getElementById('item-modal-link').value.trim();
+  const desc = document.getElementById('item-modal-desc').value.trim();
+
+  if (!name || isNaN(price) || price < 0) {
+    const el = document.getElementById('item-modal-name');
+    if (el) { el.style.borderColor = 'var(--red)'; setTimeout(() => el.style.borderColor = '', 1200); }
+    return;
+  }
+
+  item.name = name;
+  item.price = Math.round(price);
+  item.cat = cat;
+  item.subtitle = sub;
+  item.link = link;
+  item.description = desc;
+
+  persist();
+  closeItemModal();
   renderBudget();
 }
 
@@ -340,7 +401,9 @@ function renderCategories() {
 }
 
 function deleteCategory(id) {
-  if (!confirm('Supprimer cette catégorie ? Les articles associés seront aussi supprimés.')) return;
+  const cat = getCatById(id);
+  if (!cat) return;
+  if (!confirm(`Supprimer la catégorie « ${cat.label} » et tous les articles associés ?`)) return;
   state.categories = state.categories.filter(c => c.id !== id);
   state.items = state.items.filter(i => i.cat !== id);
   persist();
@@ -390,6 +453,16 @@ function saveCatModal() {
 
 function editCategory(id) { openNewCatModal(id); }
 
+function bindSidebarAutoClose() {
+  const sidebar = document.getElementById('sidebar');
+  const mobileToggle = document.querySelector('.mobile-bar button');
+  document.addEventListener('click', (event) => {
+    if (!sidebar?.classList.contains('open')) return;
+    if (sidebar.contains(event.target) || mobileToggle?.contains(event.target)) return;
+    sidebar.classList.remove('open');
+  });
+}
+
 // ── Sidebar rebuild ───────────────────────────────────────────────────────────
 function rebuildSidebar() {
   const cont = document.getElementById('nav-cats');
@@ -416,7 +489,7 @@ function askAIAbout(itemId, question) {
 
 // ── Data management ──────────────────────────────────────────────────────────
 async function resetDataUI() {
-  if (!confirm('Remettre à zéro ? Cette action est irréversible et affecte tous les utilisateurs.')) return;
+  if (!confirm('Remettre toutes les données à zéro ? Cette action supprimera toutes les modifications et réinitialisera l’état partagé en Firestore.')) return;
   try {
     state = await AppData.resetData();
     rebuildSidebar();

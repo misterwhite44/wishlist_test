@@ -146,6 +146,42 @@
   </div>
 </div>
 
+<!-- ── Item edit modal ───────────────────────────────────────────────── -->
+<div class="modal-overlay" id="item-modal-overlay" onclick="if(event.target===this)closeItemModal()">
+  <div class="modal" id="item-modal">
+    <h3>Modifier l’article</h3>
+    <input type="hidden" id="item-modal-id" />
+    <div class="form-row">
+      <label>Nom</label>
+      <input type="text" id="item-modal-name" placeholder="ex: Chaise ergonomique" />
+    </div>
+    <div class="form-row">
+      <label>Prix (€)</label>
+      <input type="number" id="item-modal-price" placeholder="Prix" min="0" step="1" />
+    </div>
+    <div class="form-row">
+      <label>Catégorie</label>
+      <select id="item-modal-cat"></select>
+    </div>
+    <div class="form-row">
+      <label>Sous-titre</label>
+      <input type="text" id="item-modal-sub" placeholder="ex: Chaise gaming confortable" />
+    </div>
+    <div class="form-row">
+      <label>Lien produit</label>
+      <input type="text" id="item-modal-link" placeholder="https://..." />
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="item-modal-desc" placeholder="Description..." style="min-height:100px"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeItemModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveItemModal()">Sauvegarder →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Scripts ─────────────────────────────────────────────────────────── -->
 <script src="js/firebase-config.js"></script>
 <script src="js/data.js"></script>
