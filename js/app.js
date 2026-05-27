@@ -11,16 +11,13 @@ function normalizeState(appState) {
   appState.categories = Array.isArray(appState.categories) ? appState.categories : [];
   appState.items = Array.isArray(appState.items) ? appState.items : [];
   if (typeof appState.budgetLimit !== 'number' || appState.budgetLimit < 0) {
-    appState.budgetLimit = 1200;
-  }
-  if (!appState.categories.length) {
-    appState.categories = [{ id: 'autres', label: 'Autres', icon: '📦', color: '#e8c547' }];
+    appState.budgetLimit = 0;
   }
   appState.items.forEach(item => {
     if (typeof item.price !== 'number' || item.price < 0) item.price = 0;
     if (!item.id) item.id = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     if (!item.name) item.name = 'Article';
-    if (!item.cat || !appState.categories.some(c => c.id === item.cat)) item.cat = appState.categories[0].id;
+    if (!item.cat || !appState.categories.some(c => c.id === item.cat)) item.cat = appState.categories[0]?.id || '';
     item.subtitle = item.subtitle || '';
     item.link = item.link || '';
     item.description = item.description || '';
@@ -492,29 +489,38 @@ function renderBudget() {
     html += `</div></div>`;
   });
 
-  html += `
-    <div class="separator"></div>
-    <div class="add-form-wrap" id="add-form-wrap">
-      <h3>+ Ajouter un article</h3>
-      <div class="form-grid">
-        <input type="text" id="add-name" placeholder="Nom de l'article" />
-        <input type="number" id="add-price" placeholder="Prix €" min="0" step="1" />
-        <select id="add-cat">${catOptions}</select>
-        <select id="add-priority">
-          <option value="haute">Priorité haute</option>
-          <option value="normale" selected>Priorité normale</option>
-          <option value="basse">Priorité basse</option>
-        </select>
-        <button class="btn btn-primary span-2" onclick="addItem()">Ajouter →</button>
-      </div>
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <input type="text" id="add-sub" placeholder="Sous-titre (optionnel)" style="flex:1;min-width:160px" />
-        <input type="text" id="add-link" placeholder="Lien produit (optionnel)" style="flex:1;min-width:160px" />
-      </div>
-      <div style="margin-top:8px">
-        <textarea id="add-desc" placeholder="Description (optionnel)..." style="height:60px"></textarea>
-      </div>
-    </div>`;
+  if (state.categories.length) {
+    html += `
+      <div class="separator"></div>
+      <div class="add-form-wrap" id="add-form-wrap">
+        <h3>+ Ajouter un article</h3>
+        <div class="form-grid">
+          <input type="text" id="add-name" placeholder="Nom de l'article" />
+          <input type="number" id="add-price" placeholder="Prix €" min="0" step="1" />
+          <select id="add-cat">${catOptions}</select>
+          <select id="add-priority">
+            <option value="haute">Priorité haute</option>
+            <option value="normale" selected>Priorité normale</option>
+            <option value="basse">Priorité basse</option>
+          </select>
+          <button class="btn btn-primary span-2" onclick="addItem()">Ajouter →</button>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="add-sub" placeholder="Sous-titre (optionnel)" style="flex:1;min-width:160px" />
+          <input type="text" id="add-link" placeholder="Lien produit (optionnel)" style="flex:1;min-width:160px" />
+        </div>
+        <div style="margin-top:8px">
+          <textarea id="add-desc" placeholder="Description (optionnel)..." style="height:60px"></textarea>
+        </div>
+      </div>`;
+  } else {
+    html += `
+      <div class="separator"></div>
+      <div class="add-form-wrap">
+        <h3>Créer une catégorie</h3>
+        <div class="empty-cat">Aucune catégorie trouvée. Va dans l'onglet Catégories pour en créer avant d'ajouter des articles.</div>
+      </div>`;
+  }
 
   cont.innerHTML = html;
   document.getElementById('add-price')?.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
