@@ -164,6 +164,14 @@
       <select id="item-modal-cat"></select>
     </div>
     <div class="form-row">
+      <label>Priorité</label>
+      <select id="item-modal-priority">
+        <option value="haute">Haute</option>
+        <option value="normale">Normale</option>
+        <option value="basse">Basse</option>
+      </select>
+    </div>
+    <div class="form-row">
       <label>Sous-titre</label>
       <input type="text" id="item-modal-sub" placeholder="ex: Chaise gaming confortable" />
     </div>
@@ -181,7 +189,7 @@
     </div>
   </div>
 </div>
-
+<input type="file" id="csv-import-input" accept=".csv,text/csv" style="display:none" onchange="handleCSVImport(event)" />
 <!-- ── Scripts ─────────────────────────────────────────────────────────── -->
 <script src="js/firebase-config.js"></script>
 <script src="js/data.js"></script>
