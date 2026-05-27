@@ -1,6 +1,7 @@
 // ── Central data store ──────────────────────────────────────────────────────
 
 const DEFAULT_DATA = {
+  budgetLimit: 1200,
   categories: [
     { id: 'cinema',  label: 'Home Cinema',    icon: '📺', color: '#e8c547' },
     { id: 'tennis',  label: 'Tennis',          icon: '🎾', color: '#5de89a' },

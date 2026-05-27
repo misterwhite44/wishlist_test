@@ -1,16 +1,46 @@
 // ── App state ────────────────────────────────────────────────────────────────
 let state = null;
 let currentPage = 'budget';
+let sortBy = 'dateDesc';
+let currentSuggestions = [];
+
+const PRIORITY_ORDER = { haute: 3, normale: 2, basse: 1 };
+
+function normalizeState(appState) {
+  if (!appState) appState = {};
+  appState.categories = Array.isArray(appState.categories) ? appState.categories : [];
+  appState.items = Array.isArray(appState.items) ? appState.items : [];
+  if (typeof appState.budgetLimit !== 'number' || appState.budgetLimit < 0) {
+    appState.budgetLimit = 1200;
+  }
+  if (!appState.categories.length) {
+    appState.categories = [{ id: 'autres', label: 'Autres', icon: '📦', color: '#e8c547' }];
+  }
+  appState.items.forEach(item => {
+    if (typeof item.price !== 'number' || item.price < 0) item.price = 0;
+    if (!item.id) item.id = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    if (!item.name) item.name = 'Article';
+    if (!item.cat || !appState.categories.some(c => c.id === item.cat)) item.cat = appState.categories[0].id;
+    item.subtitle = item.subtitle || '';
+    item.link = item.link || '';
+    item.description = item.description || '';
+    item.checked = typeof item.checked === 'boolean' ? item.checked : false;
+    item.priority = ['haute', 'normale', 'basse'].includes(item.priority) ? item.priority : 'normale';
+    item.dateAdded = typeof item.dateAdded === 'number' ? item.dateAdded : Date.now();
+    item.comparisons = Array.isArray(item.comparisons) ? item.comparisons : [];
+  });
+  return appState;
+}
 
 // Initialize app on page load
 async function initializeApp() {
   try {
-    state = await AppData.loadData();
+    state = normalizeState(await AppData.loadData());
     console.log('✨ App initialized with data');
     
     // Setup real-time listener for Firestore updates
     AppData.setupRealtimeListener((newData) => {
-      state = newData;
+      state = normalizeState(newData);
       console.log('🔄 UI updating from Firestore changes...');
       // Refresh current page if visible
       if (currentPage === 'budget') renderBudget();
@@ -75,9 +105,229 @@ function esc(s) {
 function getCatById(id) { return state?.categories?.find(c => c.id === id); }
 function getItemById(id) { return state?.items?.find(i => i.id === id); }
 
+function sortItems(items) {
+  return [...items].sort((a, b) => {
+    switch (sortBy) {
+      case 'priceAsc': return a.price - b.price;
+      case 'priceDesc': return b.price - a.price;
+      case 'dateAsc': return a.dateAdded - b.dateAdded;
+      case 'dateDesc': return b.dateAdded - a.dateAdded;
+      case 'priorityAsc': return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || a.price - b.price;
+      case 'priorityDesc': return PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority] || b.price - a.price;
+      case 'categoryAsc': return (getCatById(a.cat)?.label || '').localeCompare(getCatById(b.cat)?.label || '') || a.name.localeCompare(b.name);
+      case 'categoryDesc': return (getCatById(b.cat)?.label || '').localeCompare(getCatById(a.cat)?.label || '') || a.name.localeCompare(b.name);
+      default: return b.dateAdded - a.dateAdded;
+    }
+  });
+}
+
+function setSortBy(value) {
+  sortBy = value;
+  renderBudget();
+}
+
+function setBudgetLimitPrompt() {
+  const current = state.budgetLimit || 0;
+  const input = prompt('Budget mensuel prévu (€) :', current);
+  const value = Number(input);
+  if (!isNaN(value) && value >= 0) {
+    state.budgetLimit = Math.round(value);
+    persist();
+    renderBudget();
+  }
+}
+
+function exportCSV() {
+  if (!state?.items?.length) {
+    return alert('Aucun article à exporter.');
+  }
+  const header = ['id', 'name', 'subtitle', 'price', 'cat', 'checked', 'link', 'description', 'priority', 'dateAdded'];
+  const rows = state.items.map(item => [
+    item.id,
+    item.name,
+    item.subtitle,
+    item.price,
+    item.cat,
+    item.checked ? '1' : '0',
+    item.link,
+    item.description,
+    item.priority,
+    item.dateAdded
+  ]);
+  const csv = [header, ...rows].map(r => r.map(escapeCSV).join(',')).join('\r\n');
+  downloadFile('buylist-items.csv', csv);
+}
+
+function triggerCSVImport() {
+  document.getElementById('csv-import-input')?.click();
+}
+
+function handleCSVImport(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = String(reader.result || '').trim();
+    if (!text) return alert('Fichier vide ou invalide.');
+    const rows = parseCSV(text);
+    if (!rows.length) return alert('CSV invalide.');
+    const headers = rows.shift().map(cell => String(cell).trim().toLowerCase());
+    if (!headers.length) return alert('CSV invalide.');
+    if (!confirm(`Importer ${rows.length} article${rows.length > 1 ? 's' : ''} depuis le CSV ?`)) return;
+
+    rows.forEach((row, index) => {
+      const data = {};
+      headers.forEach((header, colIndex) => {
+        data[header] = row[colIndex] || '';
+      });
+      let categoryId = String(data.cat || '').trim();
+      let cat = state.categories.find(c => c.id === categoryId || c.label.toLowerCase() === categoryId.toLowerCase());
+      if (!cat) {
+        categoryId = categoryId || state.categories[0]?.id || 'autres';
+        if (!state.categories.some(c => c.id === categoryId)) {
+          state.categories.push({ id: categoryId, label: categoryId || 'Autres', icon: '📦', color: '#888' });
+        }
+      } else {
+        categoryId = cat.id;
+      }
+
+      state.items.push({
+        id: data.id || `item_${Date.now()}_${index}`,
+        name: data.name || 'Article importé',
+        subtitle: data.subtitle || '',
+        price: Number(data.price) || 0,
+        cat: categoryId,
+        checked: String(data.checked).trim() === '1' || String(data.checked).trim().toLowerCase() === 'true',
+        link: data.link || '',
+        description: data.description || '',
+        priority: ['haute', 'normale', 'basse'].includes(String(data.priority).trim()) ? String(data.priority).trim() : 'normale',
+        dateAdded: Number(data.dateadded) || Number(data.dateAdded) || Date.now(),
+        comparisons: []
+      });
+    });
+
+    event.target.value = '';
+    persist();
+    rebuildSidebar();
+    renderBudget();
+    renderCategories();
+    alert('Import CSV terminé.');
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        row.push(cell);
+        cell = '';
+      } else if (char === '\n') {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+      } else if (char === '\r') {
+        continue;
+      } else {
+        cell += char;
+      }
+    }
+  }
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows.filter(r => r.length && r.some(c => c !== ''));
+}
+
+function escapeCSV(value) {
+  const text = value == null ? '' : String(value);
+  if (/[",\n\r]/.test(text)) {
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  return text;
+}
+
+function downloadFile(filename, content) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function generateSuggestions() {
+  const suggestions = [];
+  const template = (name, subtitle, catId, priority = 'normale') => ({ name, subtitle, cat: catId, priority, label: `${name} (${subtitle || 'Suggestion'})` });
+  const keywordMap = [
+    { test: /cinema|home cinema|projecteur|télévision/i, items: ['Câble HDMI 2.1', 'Télécommande universelle', 'Support mural TV'], subs: ['Pour 4K', 'Contrôle simple', 'Fixation stable'] },
+    { test: /tennis/i, items: ['Balles de tennis', 'Sac de transport', 'Tapis d’entraînement'], subs: ['Pack 3', 'Pour machine à balles', 'En mousse antidérapante'] },
+    { test: /bureau|gaming|gaming/i, items: ['Lampe de bureau', 'Tapis de souris', 'Support ordinateur portable'], subs: ['Lumière douce', 'Grande surface', 'Réglable'] }
+  ];
+
+  state.categories.forEach(cat => {
+    const items = state.items.filter(i => i.cat === cat.id);
+    const group = keywordMap.find(entry => entry.test.test(cat.label));
+    const suggestionsForCat = group ? group.items.map((name, index) => template(name, group.subs[index] || '', cat.id)) : [
+      template(`Accessoire ${cat.label}`, 'À ajouter', cat.id),
+      template(`Extension pour ${cat.label}`, 'Idéal pour compléter', cat.id)
+    ];
+
+    if (!items.length) {
+      suggestions.push(...suggestionsForCat.slice(0, 3));
+    } else if (items.length < 3) {
+      suggestions.push(suggestionsForCat[0]);
+    }
+  });
+
+  if (!suggestions.length) {
+    suggestions.push(
+      template('Câble universel', 'Multi-usage', state.categories[0]?.id || 'autres'),
+      template('Protection supplémentaire', 'Housse ou coque', state.categories[0]?.id || 'autres'),
+      template('Garantie prolongée', 'Pour plus de sérénité', state.categories[0]?.id || 'autres')
+    );
+  }
+
+  return suggestions.slice(0, 6);
+}
+
+function applySuggestion(index) {
+  const suggestion = currentSuggestions[index];
+  if (!suggestion) return;
+  document.getElementById('add-name').value = suggestion.name;
+  document.getElementById('add-sub').value = suggestion.subtitle;
+  document.getElementById('add-cat').value = suggestion.cat;
+  document.getElementById('add-priority').value = suggestion.priority || 'normale';
+  document.getElementById('add-name')?.focus();
+  document.getElementById('add-form-wrap')?.scrollIntoView({ behavior: 'smooth' });
+}
+
 function catTotal(catId) {
   if (!state?.items) return 0;
-  return state.items.filter(i => i.cat === catId).reduce((s,i) => s + (i.price || 0), 0);
+  return state.items.filter(i => i.cat === catId).reduce((s, i) => s + (i.price || 0), 0);
 }
 
 function grandTotal() { 
@@ -96,18 +346,71 @@ function renderBudget() {
     return;
   }
 
+  const items = sortItems(state.items);
   const total = grandTotal();
-  const checked = state.items.filter(i => i.checked).length;
+  const checked = items.filter(i => i.checked).length;
+  const limit = state.budgetLimit || 0;
+  const remaining = limit - total;
+  const overBudget = limit > 0 && total > limit;
+  const budgetFill = limit > 0 ? Math.min(100, Math.round(total / limit * 100)) : 0;
 
-  // Total bar
-  let budgetBarHTML = state.categories.map(cat => {
+  const budgetBarHTML = state.categories.map(cat => {
     const sub = catTotal(cat.id);
     if (!sub) return '';
     const pct = total ? Math.round(sub / total * 100) : 0;
     return `<span class="budget-tag" style="color:${cat.color};border-color:${cat.color}20;background:${cat.color}10">${cat.icon} ${cat.label} — ${fmt(sub)} <span style="opacity:0.5">(${pct}%)</span></span>`;
   }).join('');
 
+  const segments = state.categories.map(cat => ({ cat, amount: catTotal(cat.id) })).filter(s => s.amount > 0);
+  let pieStyle = 'background: var(--surface3);';
+  let legendHTML = '';
+  if (segments.length) {
+    let start = 0;
+    const gradients = segments.map(segment => {
+      const pct = Math.round(segment.amount / total * 100);
+      const end = start + pct;
+      const value = `${segment.cat.color} ${start}% ${end}%`;
+      start = end;
+      return value;
+    });
+    pieStyle = `background: conic-gradient(${gradients.join(', ')});`;
+    legendHTML = segments.map(segment => {
+      const pct = total ? Math.round(segment.amount / total * 100) : 0;
+      return `<div class="legend-item"><span class="legend-color" style="background:${segment.cat.color}"></span>${esc(segment.cat.label)} <span>${pct}%</span></div>`;
+    }).join('');
+  }
+
+  const suggestions = generateSuggestions();
+  currentSuggestions = suggestions;
+  const suggestionsHTML = suggestions.map((suggestion, index) => `
+    <button class="ai-sugg" onclick="applySuggestion(${index})">${esc(suggestion.label)}</button>`).join('');
+
+  const catOptions = state.categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+
+  const sortOptions = [
+    { value: 'dateDesc', label: 'Date ajoutée (récent)' },
+    { value: 'dateAsc', label: 'Date ajoutée (ancien)' },
+    { value: 'priceAsc', label: 'Prix croissant' },
+    { value: 'priceDesc', label: 'Prix décroissant' },
+    { value: 'priorityDesc', label: 'Priorité haute → basse' },
+    { value: 'priorityAsc', label: 'Priorité basse → haute' },
+    { value: 'categoryAsc', label: 'Catégorie A→Z' },
+    { value: 'categoryDesc', label: 'Catégorie Z→A' }
+  ].map(opt => `<option value="${opt.value}"${sortBy === opt.value ? ' selected' : ''}>${opt.label}</option>`).join('');
+
   let html = `
+    <div class="budget-toolbar">
+      <div class="toolbar-group">
+        <label for="sort-by">Trier par</label>
+        <select id="sort-by" onchange="setSortBy(this.value)">${sortOptions}</select>
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn btn-ghost" onclick="exportCSV()">Exporter CSV</button>
+        <button class="btn btn-ghost" onclick="triggerCSVImport()">Importer CSV</button>
+        <button class="btn btn-accent" onclick="setBudgetLimitPrompt()">Budget : ${fmt(limit)}</button>
+      </div>
+    </div>
+
     <div class="total-bar">
       <div>
         <div class="t-label">Budget total estimé</div>
@@ -117,12 +420,41 @@ function renderBudget() {
         </div>
       </div>
       <div class="budget-bars">${budgetBarHTML}</div>
+    </div>
+
+    <div class="budget-summary ${overBudget ? 'budget-alert' : ''}">
+      <div>${limit ? `Plafond mensuel : <strong>${fmt(limit)}</strong>` : 'Aucun plafond défini'}</div>
+      <div>Dépensé : <strong>${fmt(total)}</strong></div>
+      <div>${limit ? (overBudget ? `Dépassement : <strong>${fmt(total - limit)}</strong>` : `Restant : <strong>${fmt(remaining)}</strong>`) : ''}</div>
+    </div>
+
+    <div class="budget-meter">
+      <div class="meter-track">
+        <div class="meter-fill" style="width:${budgetFill}%; background:${overBudget ? 'var(--red)' : 'var(--accent)'}"></div>
+        ${overBudget && limit > 0 ? `<div class="meter-over" style="width:${Math.min(100, Math.round((total - limit) / limit * 100))}%;"></div>` : ''}
+      </div>
+      <div class="meter-labels">
+        <span>${limit ? `Plafond ${fmt(limit)}` : 'Plafond non défini'}</span>
+        <span>Dépensé ${fmt(total)}</span>
+        ${limit ? `<span>${overBudget ? `Dépassement ${fmt(total - limit)}` : `Reste ${fmt(remaining)}`}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="budget-grid">
+      <div class="chart-card">
+        <div class="chart-title">Répartition par catégorie</div>
+        <div class="pie-chart" style="${pieStyle}"></div>
+        <div class="chart-legend">${legendHTML || '<div class="legend-empty">Ajoute des articles pour voir le graphique.</div>'}</div>
+      </div>
+      <div class="chart-card suggestions-panel">
+        <div class="chart-title">Suggestions automatiques</div>
+        <div class="suggestions-grid">${suggestionsHTML}</div>
+      </div>
     </div>`;
 
-  // Items by category
   state.categories.forEach(cat => {
-    const items = state.items.filter(i => i.cat === cat.id);
-    const sub = items.reduce((s, i) => s + i.price, 0);
+    const itemsByCategory = items.filter(i => i.cat === cat.id);
+    const sub = itemsByCategory.reduce((s, i) => s + i.price, 0);
 
     html += `<div class="cat-section">
       <div class="cat-header">
@@ -134,16 +466,17 @@ function renderBudget() {
       </div>
       <div class="items-grid">`;
 
-    if (!items.length) {
+    if (!itemsByCategory.length) {
       html += `<div class="empty-cat">Aucun article — <button class="ai-sugg" onclick="event.stopPropagation(); quickAddItem('${cat.id}')">+ Ajouter</button></div>`;
     } else {
-      items.forEach(item => {
+      itemsByCategory.forEach(item => {
         html += `
           <div class="item-row ${item.checked ? 'checked' : ''}" onclick="toggleCheck('${item.id}')">
             <div class="item-checkbox">${item.checked ? '✓' : ''}</div>
             <span class="item-icon">${cat.icon}</span>
             <div class="item-info">
               <div class="name">${esc(item.name)}</div>
+              <div class="item-meta"><span class="priority-pill priority-${item.priority}">${item.priority}</span></div>
               ${item.subtitle ? `<div class="sub">${esc(item.subtitle)}</div>` : ''}
             </div>
             <span class="item-price" style="color:${cat.color}">${fmt(item.price)}</span>
@@ -159,16 +492,19 @@ function renderBudget() {
     html += `</div></div>`;
   });
 
-  // Add item form
-  const catOptions = state.categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
   html += `
     <div class="separator"></div>
-    <div class="add-form-wrap">
+    <div class="add-form-wrap" id="add-form-wrap">
       <h3>+ Ajouter un article</h3>
       <div class="form-grid">
         <input type="text" id="add-name" placeholder="Nom de l'article" />
         <input type="number" id="add-price" placeholder="Prix €" min="0" step="1" />
         <select id="add-cat">${catOptions}</select>
+        <select id="add-priority">
+          <option value="haute">Priorité haute</option>
+          <option value="normale" selected>Priorité normale</option>
+          <option value="basse">Priorité basse</option>
+        </select>
         <button class="btn btn-primary span-2" onclick="addItem()">Ajouter →</button>
       </div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -181,8 +517,6 @@ function renderBudget() {
     </div>`;
 
   cont.innerHTML = html;
-
-  // Enter key on price
   document.getElementById('add-price')?.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
 }
 
@@ -213,6 +547,7 @@ function openEditItem(itemId) {
   document.getElementById('item-modal-name').value = item.name;
   document.getElementById('item-modal-price').value = item.price;
   document.getElementById('item-modal-cat').value = item.cat;
+  document.getElementById('item-modal-priority').value = item.priority || 'normale';
   document.getElementById('item-modal-sub').value = item.subtitle || '';
   document.getElementById('item-modal-link').value = item.link || '';
   document.getElementById('item-modal-desc').value = item.description || '';
@@ -249,6 +584,7 @@ function saveItemModal() {
   item.subtitle = sub;
   item.link = link;
   item.description = desc;
+  item.priority = document.getElementById('item-modal-priority')?.value || 'normale';
 
   persist();
   closeItemModal();
@@ -259,6 +595,7 @@ function addItem() {
   const name  = document.getElementById('add-name')?.value.trim();
   const price = parseFloat(document.getElementById('add-price')?.value);
   const cat   = document.getElementById('add-cat')?.value;
+  const priority = document.getElementById('add-priority')?.value || 'normale';
   const sub   = document.getElementById('add-sub')?.value.trim();
   const link  = document.getElementById('add-link')?.value.trim();
   const desc  = document.getElementById('add-desc')?.value.trim();
@@ -271,12 +608,16 @@ function addItem() {
 
   state.items.push({
     id: 'item_' + Date.now(),
-    name, price: Math.round(price), cat,
+    name,
+    price: Math.round(price),
+    cat,
+    priority,
     subtitle: sub || '',
     link: link || '',
     description: desc || '',
     comparisons: [],
-    checked: false
+    checked: false,
+    dateAdded: Date.now()
   });
 
   persist();
@@ -491,7 +832,7 @@ function askAIAbout(itemId, question) {
 async function resetDataUI() {
   if (!confirm('Remettre toutes les données à zéro ? Cette action supprimera toutes les modifications et réinitialisera l’état partagé en Firestore.')) return;
   try {
-    state = await AppData.resetData();
+    state = normalizeState(await AppData.resetData());
     rebuildSidebar();
     renderBudget();
     console.log('✅ Data reset successfully');
