@@ -15,10 +15,13 @@
 
 <!-- ── Mobile top bar ───────────────────────────────────────────────────── -->
 <div class="mobile-bar">
-  <button onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+  <button onclick="toggleSidebar()">☰</button>
   <span style="font-weight:800;font-size:0.9rem">BuyList</span>
   <span style="font-family:var(--font-m);font-size:0.75rem;color:var(--accent)" id="mobile-total">—</span>
 </div>
+
+<!-- Backdrop for mobile sidebar -->
+<div id="sidebar-backdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
 
 <div class="app-shell">
 
@@ -31,7 +34,7 @@
 
     <nav class="nav-section">
       <div class="nav-section-label">Navigation</div>
-      <button class="nav-item active" data-page="budget" onclick="navigate('budget')">
+      <button class="nav-item active" data-page="budget" onclick="clearCategoryFilterAndNavigate('budget')">
         <span class="nav-icon">💰</span> Budget
       </button>
       <button class="nav-item" data-page="categories" onclick="navigate('categories')">

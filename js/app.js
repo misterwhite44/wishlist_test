@@ -3,6 +3,7 @@ let state = null;
 let currentPage = 'budget';
 let sortBy = 'dateDesc';
 let currentSuggestions = [];
+let selectedCategory = null;
 
 const PRIORITY_ORDER = { haute: 3, normale: 2, basse: 1 };
 
@@ -85,7 +86,47 @@ function navigate(page) {
   if (page === 'ai') initAI();
 
   // Close mobile sidebar
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
+}
+
+function navigateToCategory(catId) {
+  selectedCategory = catId;
+  // go to budget view and render filtered
+  currentPage = 'budget';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-budget')?.classList.add('active');
+  // mark only the selected category as active
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const catBtn = document.querySelector(`.nav-item[data-cat="${catId}"]`);
+  if (catBtn) catBtn.classList.add('active');
+  renderBudget();
+  closeSidebar();
+}
+
+function clearCategoryFilterAndNavigate(page) {
+  selectedCategory = null;
+  navigate(page);
+}
+
+// Sidebar control helpers (mobile)
+function openSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  if (sidebar.classList.contains('open')) closeSidebar(); else openSidebar();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -343,7 +384,10 @@ function renderBudget() {
     return;
   }
 
-  const items = sortItems(state.items);
+  let items = sortItems(state.items);
+  if (selectedCategory) {
+    items = items.filter(i => i.cat === selectedCategory);
+  }
   const total = grandTotal();
   const checked = items.filter(i => i.checked).length;
   const limit = state.budgetLimit || 0;
@@ -384,6 +428,8 @@ function renderBudget() {
 
   const catOptions = state.categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
 
+  const activeFilterLabel = selectedCategory ? `<div style="margin-left:12px;font-size:0.9rem;color:var(--muted);font-family:var(--font-m)">Filtre: ${esc(getCatById(selectedCategory)?.label || '')} <button class="btn btn-ghost" style="margin-left:8px;padding:6px 8px;font-size:0.72rem" onclick="clearCategoryFilterAndNavigate('budget')">Effacer</button></div>` : '';
+
   const sortOptions = [
     { value: 'dateDesc', label: 'Date ajoutée (récent)' },
     { value: 'dateAsc', label: 'Date ajoutée (ancien)' },
@@ -401,6 +447,7 @@ function renderBudget() {
         <label for="sort-by">Trier par</label>
         <select id="sort-by" onchange="setSortBy(this.value)">${sortOptions}</select>
       </div>
+      ${activeFilterLabel}
       <div class="toolbar-actions">
         <button class="btn btn-ghost" onclick="exportCSV()">Exporter CSV</button>
         <button class="btn btn-ghost" onclick="triggerCSVImport()">Importer CSV</button>
@@ -806,7 +853,7 @@ function bindSidebarAutoClose() {
   document.addEventListener('click', (event) => {
     if (!sidebar?.classList.contains('open')) return;
     if (sidebar.contains(event.target) || mobileToggle?.contains(event.target)) return;
-    sidebar.classList.remove('open');
+    closeSidebar();
   });
 }
 
@@ -816,7 +863,7 @@ function rebuildSidebar() {
   if (!cont) return;
   if (!state || !state.categories || !state.items) return;
   cont.innerHTML = state.categories.map(cat => `
-    <button class="nav-item" data-page="budget" onclick="navigate('budget')" style="">
+    <button class="nav-item ${selectedCategory===cat.id ? 'active' : ''}" data-page="budget-cat" data-cat="${cat.id}" onclick="navigateToCategory('${cat.id}')" style="">
       <span class="nav-icon">${cat.icon}</span>
       <span>${cat.label}</span>
       <span class="nav-badge">${state.items.filter(i => i.cat === cat.id).length}</span>
