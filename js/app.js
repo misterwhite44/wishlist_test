@@ -86,7 +86,7 @@ function navigate(page) {
   if (page === 'ai') initAI();
 
   // Close mobile sidebar
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
 }
 
 function navigateToCategory(catId) {
@@ -95,15 +95,38 @@ function navigateToCategory(catId) {
   currentPage = 'budget';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-budget')?.classList.add('active');
+  // mark only the selected category as active
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll(`.nav-item[data-page="budget"]`)?.forEach(n => n.classList.add('active'));
+  const catBtn = document.querySelector(`.nav-item[data-cat="${catId}"]`);
+  if (catBtn) catBtn.classList.add('active');
   renderBudget();
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
 }
 
 function clearCategoryFilterAndNavigate(page) {
   selectedCategory = null;
   navigate(page);
+}
+
+// Sidebar control helpers (mobile)
+function openSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  if (sidebar.classList.contains('open')) closeSidebar(); else openSidebar();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -830,7 +853,7 @@ function bindSidebarAutoClose() {
   document.addEventListener('click', (event) => {
     if (!sidebar?.classList.contains('open')) return;
     if (sidebar.contains(event.target) || mobileToggle?.contains(event.target)) return;
-    sidebar.classList.remove('open');
+    closeSidebar();
   });
 }
 
@@ -840,7 +863,7 @@ function rebuildSidebar() {
   if (!cont) return;
   if (!state || !state.categories || !state.items) return;
   cont.innerHTML = state.categories.map(cat => `
-    <button class="nav-item" data-page="budget" onclick="navigateToCategory('${cat.id}')" style="">
+    <button class="nav-item ${selectedCategory===cat.id ? 'active' : ''}" data-page="budget-cat" data-cat="${cat.id}" onclick="navigateToCategory('${cat.id}')" style="">
       <span class="nav-icon">${cat.icon}</span>
       <span>${cat.label}</span>
       <span class="nav-badge">${state.items.filter(i => i.cat === cat.id).length}</span>
