@@ -816,7 +816,7 @@ function rebuildSidebar() {
   if (!cont) return;
   if (!state || !state.categories || !state.items) return;
   cont.innerHTML = state.categories.map(cat => `
-    <button class="nav-item" data-page="budget" onclick="navigate('budget')" style="">
+    <button class="nav-item" data-page="budget" onclick="navigate('budget');document.getElementById('sidebar').classList.remove('open')" style="">
       <span class="nav-icon">${cat.icon}</span>
       <span>${cat.label}</span>
       <span class="nav-badge">${state.items.filter(i => i.cat === cat.id).length}</span>
